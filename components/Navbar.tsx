@@ -14,10 +14,8 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="bg-[#1a1d21] text-white px-4 py-2 flex justify-between items-center">
-        <div className="flex items-center">
-          <h1 className="text-xl font-bold">ChatGenius</h1>
-        </div>
+      <nav className="h-16 bg-[#1a1d21] border-b border-gray-700 flex items-center justify-between px-4">
+        <div className="text-white font-semibold">Chat App</div>
 
         <div className="relative">
           <button
@@ -33,13 +31,13 @@ export default function Navbar() {
                 className="rounded-full"
               />
             )}
-            <ChevronDown size={16} />
+            <ChevronDown className="text-gray-400" size={16} />
           </button>
 
           {isProfileOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-[#1a1d21] rounded-md shadow-lg py-1 z-50">
               <div className="px-4 py-2 border-b border-gray-700">
-                <p className="text-sm font-medium">{user?.fullName}</p>
+                <p className="text-sm font-medium text-white">{user?.fullName}</p>
                 <p className="text-xs text-gray-400">{user?.primaryEmailAddress?.emailAddress}</p>
               </div>
               <button

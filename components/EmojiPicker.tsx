@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import data from '@emoji-mart/data'
 import Picker from '@emoji-mart/react'
 
 interface EmojiPickerProps {
-  onSelect: (emoji: string) => void
+  onEmojiSelect: (emoji: string) => void
   onClose: () => void
 }
 
-export default function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
+export default function EmojiPicker({ onEmojiSelect, onClose }: EmojiPickerProps) {
   const pickerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -24,12 +24,16 @@ export default function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
   }, [onClose])
 
   return (
-    <div ref={pickerRef} className="absolute bottom-full mb-2">
+    <div ref={pickerRef} className="absolute bottom-full mb-2 z-50">
       <Picker
         data={data}
-        onEmojiSelect={(emoji: any) => onSelect(emoji.native)}
-        theme="light"
-        set="native"
+        onEmojiSelect={(emoji: any) => {
+          onEmojiSelect(emoji.native)
+          onClose()
+        }}
+        theme="dark"
+        previewPosition="none"
+        skinTonePosition="none"
       />
     </div>
   )

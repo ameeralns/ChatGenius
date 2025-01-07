@@ -1,5 +1,13 @@
-import { ClerkProvider } from '@clerk/nextjs'
+import { Inter } from 'next/font/google'
 import './globals.css'
+import { ClerkProvider } from '@clerk/nextjs'
+
+const inter = Inter({ subsets: ['latin'] })
+
+export const metadata = {
+  title: 'ChatGenius',
+  description: 'Real-time chat application',
+}
 
 export default function RootLayout({
   children,
@@ -7,11 +15,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body>{children}</body>
-      </html>
-    </ClerkProvider>
+    <html lang="en">
+      <ClerkProvider>
+        <body className={inter.className}>
+          {children}
+        </body>
+      </ClerkProvider>
+    </html>
   )
 }
 

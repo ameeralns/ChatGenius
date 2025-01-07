@@ -12,12 +12,27 @@ export async function GET(
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
+    // First verify the user is a member of the workspace
+    const workspaceMember = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId,
+          workspaceId: params.workspaceId
+        }
+      }
+    })
+
+    if (!workspaceMember) {
+      return new NextResponse('Unauthorized', { status: 401 })
+    }
+
+    // Get channels for this specific workspace
     const channels = await prisma.channel.findMany({
       where: {
         workspaceId: params.workspaceId,
         members: {
           some: {
-            userId: userId
+            userId
           }
         }
       },
@@ -43,26 +58,31 @@ export async function POST(
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const { name, description } = await request.json()
+    const { name } = await request.json()
 
-    // Check if user is a member of the workspace
-    const workspaceMember = await prisma.workspaceMember.findUnique({
+    // Validate channel name
+    if (!name?.trim()) {
+      return new NextResponse('Channel name is required', { status: 400 })
+    }
+
+    // Verify user is a member of the workspace
+    const member = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
           userId,
-          workspaceId: params.workspaceId,
+          workspaceId: params.workspaceId
         }
       }
     })
 
-    if (!workspaceMember) {
+    if (!member) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
+    // Create the channel in the specific workspace
     const channel = await prisma.channel.create({
       data: {
-        name,
-        description,
+        name: name.trim().toLowerCase().replace(/\s+/g, '-'),
         workspaceId: params.workspaceId,
         members: {
           create: {

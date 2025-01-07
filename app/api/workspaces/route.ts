@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { prisma } from '@/lib/prisma';
+import { PrismaClient } from '@prisma/client'
 
 export async function POST(request: Request) {
   try {
@@ -9,37 +10,34 @@ export async function POST(request: Request) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const { name, imageUrl } = await request.json();
+    const { name, color } = await request.json();
 
-    const workspace = await prisma.$transaction(async (tx) => {
-      // Create the workspace
-      const workspace = await tx.workspace.create({
-        data: {
-          name,
-          imageUrl,
-          members: {
-            create: {
-              userId,
-              role: 'ADMIN'
+    if (!name?.trim()) {
+      return new NextResponse('Workspace name is required', { status: 400 });
+    }
+
+    // Create workspace with color
+    const workspace = await prisma.workspace.create({
+      data: {
+        name: name.trim(),
+        color: color || '#4A5568', // Default color if none provided
+        members: {
+          create: {
+            userId,
+            role: 'ADMIN'
+          }
+        },
+        channels: {
+          create: {
+            name: 'general',
+            members: {
+              create: {
+                userId
+              }
             }
           }
         }
-      });
-
-      // Create default general channel
-      await tx.channel.create({
-        data: {
-          name: 'general',
-          workspaceId: workspace.id,
-          members: {
-            create: {
-              userId
-            }
-          }
-        }
-      });
-
-      return workspace;
+      }
     });
 
     return NextResponse.json(workspace);
@@ -56,6 +54,7 @@ export async function GET(request: Request) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
+    // Get all workspaces where the user is a member
     const workspaces = await prisma.workspace.findMany({
       where: {
         members: {
@@ -63,6 +62,9 @@ export async function GET(request: Request) {
             userId
           }
         }
+      },
+      include: {
+        members: true
       }
     });
 

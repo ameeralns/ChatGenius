@@ -14,4 +14,21 @@ export interface Channel {
   description: string;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface Message {
+  id: string;
+  content: string;
+  userId: string;
+  createdAt: Date;
+  readBy: string[];
+  reactions: {
+    emoji: string;
+    userId: string;
+  }[];
+}
+
+export interface TypingIndicator {
+  userId: string;
+  userName: string;
 } 
