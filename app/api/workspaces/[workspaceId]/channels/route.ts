@@ -9,15 +9,15 @@ export async function GET(
   try {
     const { userId } = auth()
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const channels = await prisma.channel.findMany({
       where: {
         workspaceId: params.workspaceId,
-        members: {
+        channelMembers: {
           some: {
-            userId: userId
+            userId
           }
         }
       },
@@ -29,7 +29,10 @@ export async function GET(
     return NextResponse.json(channels)
   } catch (error) {
     console.error('[CHANNELS_GET]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    )
   }
 }
 
@@ -40,31 +43,36 @@ export async function POST(
   try {
     const { userId } = auth()
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { name, description } = await request.json()
+    const { name } = await request.json()
 
-    // Check if user is a member of the workspace
+    // Validate channel name
+    if (!name?.trim()) {
+      return NextResponse.json({ error: 'Channel name is required' }, { status: 400 })
+    }
+
+    // Check workspace membership
     const workspaceMember = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
           userId,
-          workspaceId: params.workspaceId,
+          workspaceId: params.workspaceId
         }
       }
     })
 
     if (!workspaceMember) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: 'Not a workspace member' }, { status: 403 })
     }
 
+    // Create channel and add creator as member
     const channel = await prisma.channel.create({
       data: {
-        name,
-        description,
+        name: name.trim().toLowerCase().replace(/\s+/g, '-'),
         workspaceId: params.workspaceId,
-        members: {
+        channelMembers: {
           create: {
             userId
           }
@@ -75,6 +83,9 @@ export async function POST(
     return NextResponse.json(channel)
   } catch (error) {
     console.error('[CHANNELS_POST]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal Server Error' },
+      { status: 500 }
+    )
   }
 } 

@@ -1,85 +1,162 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs'
+import { auth, currentUser } from '@clerk/nextjs'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(
-  request: Request,
+export async function POST(
+  req: Request,
   { params }: { params: { workspaceId: string; channelId: string } }
 ) {
   try {
     const { userId } = auth()
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const clerkUser = await currentUser()
+    
+    if (!userId || !clerkUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is a member of the channel
-    const member = await prisma.channelMember.findUnique({
+    const { content } = await req.json()
+
+    // Verify channel exists and belongs to workspace
+    const channel = await prisma.channel.findFirst({
       where: {
-        userId_channelId: {
-          userId,
-          channelId: params.channelId
-        }
+        id: params.channelId,
+        workspaceId: params.workspaceId
       }
     })
 
-    if (!member) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    if (!channel) {
+      return NextResponse.json({ error: 'Channel not found' }, { status: 404 })
     }
 
-    const messages = await prisma.message.findMany({
-      where: {
-        channelId: params.channelId
+    // Create or update user with Clerk data
+    const user = await prisma.user.upsert({
+      where: { 
+        id: userId 
       },
-      orderBy: {
-        createdAt: 'desc'
+      update: {
+        name: clerkUser.firstName 
+          ? `${clerkUser.firstName} ${clerkUser.lastName || ''}`
+          : clerkUser.username || 'Unknown User',
+        imageUrl: clerkUser.imageUrl || '',
       },
-      take: 50 // Limit to last 50 messages
+      create: {
+        id: userId,
+        name: clerkUser.firstName 
+          ? `${clerkUser.firstName} ${clerkUser.lastName || ''}`
+          : clerkUser.username || 'Unknown User',
+        imageUrl: clerkUser.imageUrl || '',
+      }
     })
 
-    return NextResponse.json(messages)
+    // Create message
+    const message = await prisma.message.create({
+      data: {
+        content: content.trim(),
+        userId: user.id,
+        channelId: params.channelId,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            imageUrl: true,
+          }
+        },
+        reactions: true
+      }
+    })
+
+    // Format message for frontend
+    const formattedMessage = {
+      id: message.id,
+      content: message.content,
+      userId: message.userId,
+      createdAt: message.createdAt,
+      user: {
+        id: user.id,
+        name: user.name,
+        imageUrl: user.imageUrl
+      },
+      reactions: []
+    }
+
+    return NextResponse.json(formattedMessage)
   } catch (error) {
-    console.error('[MESSAGES_GET]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error('[MESSAGES_POST]', error)
+    return NextResponse.json(
+      { error: 'Failed to send message' },
+      { status: 500 }
+    )
   }
 }
 
-export async function POST(
-  request: Request,
+export async function GET(
+  req: Request,
   { params }: { params: { workspaceId: string; channelId: string } }
 ) {
   try {
     const { userId } = auth()
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { content } = await request.json()
-
-    // Check if user is a member of the channel
-    const member = await prisma.channelMember.findUnique({
+    // Get messages with user data and reactions
+    const messages = await prisma.message.findMany({
       where: {
-        userId_channelId: {
-          userId,
-          channelId: params.channelId
+        channelId: params.channelId,
+        channel: {
+          workspaceId: params.workspaceId
         }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            imageUrl: true,
+          }
+        },
+        reactions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                imageUrl: true,
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'asc'
       }
     })
 
-    if (!member) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
+    // Format messages for frontend
+    const formattedMessages = messages.map(message => ({
+      id: message.id,
+      content: message.content,
+      userId: message.userId,
+      createdAt: message.createdAt,
+      user: {
+        id: message.user.id,
+        name: message.user.name,
+        imageUrl: message.user.imageUrl
+      },
+      reactions: message.reactions.map(reaction => ({
+        emoji: reaction.emoji,
+        userId: reaction.userId
+      }))
+    }))
 
-    const message = await prisma.message.create({
-      data: {
-        content,
-        userId,
-        channelId: params.channelId
-      }
-    })
-
-    return NextResponse.json(message)
+    return NextResponse.json(formattedMessages)
   } catch (error) {
-    console.error('[MESSAGES_POST]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error('[MESSAGES_GET]', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch messages' },
+      { status: 500 }
+    )
   }
 } 

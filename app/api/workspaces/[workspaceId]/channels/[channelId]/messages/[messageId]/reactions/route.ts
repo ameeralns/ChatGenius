@@ -1,32 +1,21 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs'
 import { prisma } from '@/lib/prisma'
+import { pusherServer } from '@/lib/pusher'
 
 export async function POST(
-  request: Request,
+  req: Request,
   { params }: { params: { workspaceId: string; channelId: string; messageId: string } }
 ) {
   try {
     const { userId } = auth()
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
-    const { emoji } = await request.json()
+    const { emoji } = await req.json()
 
-    // Check if reaction already exists
-    const existingReaction = await prisma.reaction.findFirst({
-      where: {
-        messageId: params.messageId,
-        userId,
-        emoji,
-      },
-    })
-
-    if (existingReaction) {
-      return new NextResponse('Reaction already exists', { status: 400 })
-    }
-
+    // Create the reaction
     const reaction = await prisma.reaction.create({
       data: {
         emoji,
@@ -36,16 +25,32 @@ export async function POST(
       include: {
         user: {
           select: {
-            firstName: true,
-            lastName: true,
+            name: true,
           },
         },
       },
     })
 
-    return NextResponse.json(reaction)
+    // Format the reaction for real-time update
+    const formattedReaction = {
+      emoji: reaction.emoji,
+      userId: reaction.userId,
+      userName: reaction.user.name,
+    }
+
+    // Trigger real-time update
+    await pusherServer.trigger(
+      `channel-${params.channelId}`,
+      'new-reaction',
+      {
+        messageId: params.messageId,
+        reaction: formattedReaction,
+      }
+    )
+
+    return NextResponse.json(formattedReaction)
   } catch (error) {
-    console.error('[REACTIONS_POST]', error)
-    return new NextResponse('Internal Error', { status: 500 })
+    console.error('[REACTION_POST]', error)
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 })
   }
 } 

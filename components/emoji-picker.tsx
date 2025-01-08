@@ -1,20 +1,20 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
 import data from '@emoji-mart/data'
 import Picker from '@emoji-mart/react'
+import { useRef, useEffect } from 'react'
 
 interface EmojiPickerProps {
   onEmojiSelect: (emoji: string) => void
   onClose: () => void
 }
 
-export default function EmojiPicker({ onEmojiSelect, onClose }: EmojiPickerProps) {
-  const pickerRef = useRef<HTMLDivElement>(null)
+export function EmojiPicker({ onEmojiSelect, onClose }: EmojiPickerProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         onClose()
       }
     }
@@ -24,12 +24,11 @@ export default function EmojiPicker({ onEmojiSelect, onClose }: EmojiPickerProps
   }, [onClose])
 
   return (
-    <div ref={pickerRef} className="absolute bottom-full mb-2 z-50">
+    <div ref={containerRef} className="z-50">
       <Picker
         data={data}
         onEmojiSelect={(emoji: any) => {
           onEmojiSelect(emoji.native)
-          onClose()
         }}
         theme="dark"
         previewPosition="none"

@@ -1,51 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { prisma } from '@/lib/prisma';
+import { PrismaClient } from '@prisma/client'
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
     const { userId } = auth();
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { name, imageUrl } = await request.json();
+    const { name, color } = await req.json();
+    
+    // First ensure user exists in the database
+    await prisma.user.upsert({
+      where: { id: userId },
+      create: { id: userId },
+      update: {},
+    })
 
-    const workspace = await prisma.$transaction(async (tx) => {
-      // Create the workspace
-      const workspace = await tx.workspace.create({
-        data: {
-          name,
-          imageUrl,
-          members: {
-            create: {
-              userId,
-              role: 'ADMIN'
+    const workspace = await prisma.workspace.create({
+      data: {
+        name,
+        color,
+        members: {
+          create: {
+            userId,
+            role: 'ADMIN',
+          },
+        },
+        channels: {
+          create: {
+            name: 'general',
+            channelMembers: {
+              create: {
+                userId
+              }
             }
           }
         }
-      });
-
-      // Create default general channel
-      await tx.channel.create({
-        data: {
-          name: 'general',
-          workspaceId: workspace.id,
-          members: {
-            create: {
-              userId
-            }
-          }
-        }
-      });
-
-      return workspace;
+      },
+      include: {
+        channels: true
+      }
     });
 
     return NextResponse.json(workspace);
   } catch (error) {
-    console.error('[WORKSPACES_POST]', error);
-    return new NextResponse('Internal Error', { status: 500 });
+    console.error('Server error:', error);
+    return NextResponse.json(
+      { error: 'Failed to create workspace' },
+      { status: 500 }
+    );
   }
 }
 
@@ -56,6 +62,7 @@ export async function GET(request: Request) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
+    // Get all workspaces where the user is a member
     const workspaces = await prisma.workspace.findMany({
       where: {
         members: {
@@ -63,6 +70,9 @@ export async function GET(request: Request) {
             userId
           }
         }
+      },
+      include: {
+        members: true
       }
     });
 
